@@ -308,7 +308,7 @@ def evaluate_model(model, data_manager, config):
             dataframe['fillers'].append(num_fillers)
             dataframe['accuracy'].append(accuracy)
 
-    wandb.log(pd.DataFrame(dataframe))
+    wandb.log({'accuracy': pd.DataFrame(dataframe)})
 
 
 @dataclasses.dataclass
