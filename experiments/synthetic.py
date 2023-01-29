@@ -9,6 +9,7 @@ import argparse
 import dataclasses
 import yaml
 import wandb
+import pandas as pd
 from functools import reduce
 
 
@@ -283,6 +284,11 @@ def compute_accuracy(model, data_manager, num_iters=1000, last_n_tokens=None, in
 
 
 def evaluate_model(model, data_manager, config):
+    dataframe = {
+        'terms': [],
+        'fillers': [],
+        'accuracy': [],
+    }
     for num_terms in range(config.min_terms, config.max_terms + 1):
         for num_fillers in range(config.min_fillers, config.max_fillers + 1):
             # Preserve dictionary but change token distribution
@@ -297,7 +303,12 @@ def evaluate_model(model, data_manager, config):
                 model, data_manager,
                 num_iters=1000, last_n_tokens=1, initial_input=initial_input, ban_tokens=[DataManager.FILLER_TOKEN],
             )
-            wandb.log({'terms': num_terms, 'fillers': num_fillers, 'accuracy': accuracy})
+
+            dataframe['terms'].append(num_terms)
+            dataframe['fillers'].append(num_fillers)
+            dataframe['accuracy'].append(accuracy)
+
+    wandb.log(pd.DataFrame(dataframe))
 
 
 @dataclasses.dataclass

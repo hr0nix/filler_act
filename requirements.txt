@@ -2,3 +2,5 @@ torch
 einops
 pyyaml
 wandb
+numpy
+pandas
