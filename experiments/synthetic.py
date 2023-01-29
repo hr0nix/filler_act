@@ -301,7 +301,10 @@ def evaluate_model(model, data_manager, config):
             initial_input = [DataManager.UNKNOWN_TOKEN] + [DataManager.FILLER_TOKEN] * num_fillers
             accuracy = compute_accuracy(
                 model, dm,
-                num_iters=1000, last_n_tokens=1, initial_input=initial_input, ban_tokens=[DataManager.FILLER_TOKEN],
+                num_iters=1000,
+                last_n_tokens=1,
+                initial_input=initial_input,
+                ban_tokens=[DataManager.FILLER_TOKEN],
             )
 
             dataframe['terms'].append(num_terms)
@@ -341,7 +344,10 @@ def run(config, device):
             min_fillers=config.min_fillers, max_fillers=config.max_fillers,
         )
     )
-    data_manager.warmup()  # To figure out the vocabulary and sequence length in advance
+    # Make sure that filler token is in the dictionary
+    data_manager.tokenize_token(DataManager.FILLER_TOKEN)
+    # Generate some sequences to figure out the vocabulary and sequence length in advance
+    data_manager.warmup()
 
     model = TransformerModel(
         num_layers=config.num_layers,
