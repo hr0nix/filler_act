@@ -298,9 +298,9 @@ def evaluate_model(model, data_manager, config):
                     min_fillers=num_fillers, max_fillers=num_fillers,
                 )
             )
-            initial_input = [DataManager.UNKNOWN_TOKEN] + [DataManager.FILLER_TOKEN] * num_terms
+            initial_input = [DataManager.UNKNOWN_TOKEN] + [DataManager.FILLER_TOKEN] * num_fillers
             accuracy = compute_accuracy(
-                model, data_manager,
+                model, dm,
                 num_iters=1000, last_n_tokens=1, initial_input=initial_input, ban_tokens=[DataManager.FILLER_TOKEN],
             )
 
