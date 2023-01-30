@@ -133,6 +133,7 @@ def run(config, device):
         num_train_epochs=config.num_epochs,
         report_to="wandb",
         save_total_limit=1,
+        bf16=True,
     )
 
     trainer = Trainer(
