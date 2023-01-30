@@ -20,6 +20,7 @@ class ExperimentConfig:
     batch_size: int
     lr: float
     weight_decay: float
+    warmup_ratio: float
     text_chunk_length: int
     filler_to_token_ratio: float
 
@@ -117,6 +118,9 @@ def run(config, device):
 
     training_args = TrainingArguments(
         output_dir="./model",
+        warmup_ratio=config.warmup_ratio,
+        logging_strategy="epoch",
+        save_strategy="epoch",
         evaluation_strategy="epoch",
         per_device_train_batch_size=config.batch_size,
         per_device_eval_batch_size=config.batch_size,
@@ -124,6 +128,7 @@ def run(config, device):
         weight_decay=config.weight_decay,
         num_train_epochs=config.num_epochs,
         report_to="wandb",
+        save_total_limit=1,
     )
 
     trainer = Trainer(
@@ -134,7 +139,6 @@ def run(config, device):
     )
 
     trainer.train()
-    trainer.evaluate()
 
 
 def main():

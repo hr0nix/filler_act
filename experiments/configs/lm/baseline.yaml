@@ -3,7 +3,8 @@ dataset_subset: wikitext-103-v1
 base_model: distilgpt2
 num_epochs: 20
 batch_size: 64
-lr: 0.001
+lr: 0.0001
 weight_decay: 0.1
 text_chunk_length: 128
+warmup_ratio: 0.05
 filler_to_token_ratio: 0.0
