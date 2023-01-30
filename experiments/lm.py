@@ -14,8 +14,7 @@ FILLER_TOKEN = '<UM>'
 
 @dataclasses.dataclass
 class ExperimentConfig:
-    dataset_path: str
-    dataset_name: str
+    dataset: str
     base_model: str
     num_epochs: int
     batch_size: int
@@ -96,7 +95,7 @@ def batch_texts(dataset, chunk_length):
 
 
 def run(config, device):
-    dataset = load_dataset(config.dataset_path, config.dataset_name)
+    dataset = load_dataset(config.dataset, f'./datasets/{config.dataset}')
 
     tokenizer = AutoTokenizer.from_pretrained(config.base_model)
     model = AutoModelForCausalLM.from_pretrained(config.base_model)

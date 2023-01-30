@@ -1,0 +1,8 @@
+dataset: wikitext
+base_model: distilgpt2
+num_epochs: 1
+batch_size: 128
+lr: 0.001
+weight_decay: 0.1
+text_chunk_length: 256
+filler_to_token_ratio: 0.0
