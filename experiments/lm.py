@@ -18,6 +18,7 @@ class ExperimentConfig:
     base_model: str
     num_epochs: int
     batch_size: int
+    gradient_accumulation_steps: int
     lr: float
     weight_decay: float
     warmup_ratio: float
@@ -124,6 +125,7 @@ def run(config, device):
         evaluation_strategy="epoch",
         per_device_train_batch_size=config.batch_size,
         per_device_eval_batch_size=config.batch_size,
+        gradient_accumulation_steps=config.gradient_accumulation_steps,
         learning_rate=config.lr,
         weight_decay=config.weight_decay,
         num_train_epochs=config.num_epochs,
