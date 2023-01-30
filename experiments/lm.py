@@ -100,13 +100,13 @@ def batch_texts(dataset, chunk_length):
 
 
 def run(config, device):
-    dataset = load_dataset(config.dataset, config.dataset_subset)
-
     tokenizer = AutoTokenizer.from_pretrained(config.base_model)
     model = AutoModelForCausalLM.from_pretrained(config.base_model)
+    print(model.config)
 
     model = model.to(device)
 
+    dataset = load_dataset(config.dataset, config.dataset_subset)
     add_filler_tokens(tokenizer, model)
     dataset = insert_fillers(dataset, config.filler_to_token_ratio)
     dataset = tokenize(tokenizer, dataset)
