@@ -1,7 +1,6 @@
 import argparse
 import yaml
 import dataclasses
-import math
 
 import numpy as np
 
@@ -112,10 +111,15 @@ def run(config, device):
     dataset = tokenize(tokenizer, dataset)
     dataset = batch_texts(dataset, config.text_chunk_length)
 
+    print(f'Train size: {len(dataset["train"])}')
+    print(f'Validation size: {len(dataset["validation"])}')
+    print(f'Train example: {tokenizer.decode(dataset["train"][1]["input_ids"])}')
+
     training_args = TrainingArguments(
         output_dir="./model",
         evaluation_strategy="epoch",
         per_device_train_batch_size=config.batch_size,
+        per_device_eval_batch_size=config.batch_size,
         learning_rate=config.lr,
         weight_decay=config.weight_decay,
         num_train_epochs=config.num_epochs,
@@ -129,8 +133,8 @@ def run(config, device):
         eval_dataset=dataset["validation"],
     )
 
-    eval_results = trainer.evaluate()
-    print(f"Perplexity: {math.exp(eval_results['eval_loss']):.2f}")
+    trainer.train()
+    trainer.evaluate()
 
 
 def main():
