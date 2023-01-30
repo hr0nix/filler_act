@@ -40,13 +40,13 @@ def add_filler_tokens(tokenizer, model):
 
 def tokenize(tokenizer, dataset):
     def tokenize_fn(example):
-        return tokenizer(example)
+        return tokenizer(example['text'])
 
     return dataset.map(
         tokenize_fn,
         batched=True,
         num_proc=4,
-        remove_columns=["text"]
+        remove_columns=['text']
     )
 
 
