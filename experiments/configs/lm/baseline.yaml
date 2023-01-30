@@ -1,4 +1,4 @@
-dataset: wikitext
+dataset: wikitext-2-raw-v1
 base_model: distilgpt2
 num_epochs: 1
 batch_size: 128
