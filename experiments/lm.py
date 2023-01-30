@@ -19,10 +19,10 @@ class ExperimentConfig:
     num_epochs: int
     batch_size: int
     gradient_accumulation_steps: int
+    eval_steps: int
     lr: float
     weight_decay: float
     warmup_ratio: float
-    text_chunk_length: int
     filler_to_token_ratio: float
 
 
@@ -103,7 +103,6 @@ def batch_texts(dataset, chunk_length):
 def run(config, device):
     tokenizer = AutoTokenizer.from_pretrained(config.base_model)
     model = AutoModelForCausalLM.from_pretrained(config.base_model)
-    print(model.config)
 
     model = model.to(device)
 
@@ -111,7 +110,7 @@ def run(config, device):
     add_filler_tokens(tokenizer, model)
     dataset = insert_fillers(dataset, config.filler_to_token_ratio)
     dataset = tokenize(tokenizer, dataset)
-    dataset = batch_texts(dataset, config.text_chunk_length)
+    dataset = batch_texts(dataset, model.config.n_ctx)
 
     print(f'Train size: {len(dataset["train"])}')
     print(f'Validation size: {len(dataset["validation"])}')
@@ -120,9 +119,12 @@ def run(config, device):
     training_args = TrainingArguments(
         output_dir="./model",
         warmup_ratio=config.warmup_ratio,
-        logging_strategy="epoch",
-        save_strategy="epoch",
-        evaluation_strategy="epoch",
+        logging_strategy="steps",
+        save_strategy="steps",
+        evaluation_strategy="steps",
+        logging_steps=config.eval_steps,
+        eval_steps=config.eval_steps,
+        save_steps=config.eval_steps,
         per_device_train_batch_size=config.batch_size,
         per_device_eval_batch_size=config.batch_size,
         gradient_accumulation_steps=config.gradient_accumulation_steps,
