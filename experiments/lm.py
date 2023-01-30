@@ -75,14 +75,18 @@ def insert_fillers(dataset, filler_to_token_ratio):
 
 def batch_texts(dataset, chunk_length):
     def batch_texts_fn(example):
-        concatenated_example = {'input_ids': sum(example['input_ids'], [])}
+        concatenated_example = {
+            k: sum(example[v], [])
+            for k, v in example.items()
+        }
         total_length = len(concatenated_example['input_ids'])
         total_length = (total_length // chunk_length) * chunk_length
         result = {
-            'input_ids': [
-                concatenated_example['input_ids'][i: i + chunk_length]
+            k: [
+                v[i: i + chunk_length]
                 for i in range(0, total_length, chunk_length)
             ]
+            for k, v in concatenated_example.items()
         }
         result['labels'] = result['input_ids'].copy()
         return result
