@@ -1,9 +1,9 @@
 dataset: wikitext
-dataset_subset: wikitext-2-raw-v1
+dataset_subset: wikitext-103-v1
 base_model: distilgpt2
-num_epochs: 1
-batch_size: 128
+num_epochs: 20
+batch_size: 64
 lr: 0.001
 weight_decay: 0.1
-text_chunk_length: 256
+text_chunk_length: 128
 filler_to_token_ratio: 0.0
