@@ -80,7 +80,7 @@ def batch_texts(dataset, chunk_length):
         total_length = (total_length // chunk_length) * chunk_length
         result = {
             'input_ids': [
-                concatenated_example['input_id'][i: i + chunk_length]
+                concatenated_example['input_ids'][i: i + chunk_length]
                 for i in range(0, total_length, chunk_length)
             ]
         }
