@@ -53,28 +53,30 @@ def tokenize(tokenizer, dataset):
     )
 
 
-def insert_fillers(dataset, filler_to_token_ratio, no_fillers_prob):
+def insert_fillers(dataset, tokenizer, filler_to_token_ratio, no_fillers_prob):
+    filler_token_index = tokenizer.encode(FILLER_TOKEN)[0]
+
     def insert_fillers_fn(example):
         if random.random() < no_fillers_prob:
             return example
 
-        num_fillers = int(len(example['text']) * filler_to_token_ratio)
+        num_fillers = int(len(example['input_ids']) * filler_to_token_ratio)
         if num_fillers == 0:
             return example
 
-        num_tokens_after_insert = len(example['text']) + num_fillers
+        num_tokens_after_insert = len(example['input_ids']) + num_fillers
         # Don't insert at the last position because there is no token after it
         filler_indices = np.random.choice(num_tokens_after_insert - 1, num_fillers, replace=False)
         text_pos = 0
-        text_with_fillers = ''
+        text_with_fillers = []
         for i in range(num_tokens_after_insert):
             if i in filler_indices:
-                text_with_fillers += FILLER_TOKEN
+                text_with_fillers.append(filler_token_index)
             else:
-                text_with_fillers += example['text'][text_pos]
+                text_with_fillers.append(example['input_ids'][text_pos])
                 text_pos += 1
 
-        return {'text': text_with_fillers}
+        return {'input_ids': text_with_fillers}
 
     return dataset.map(insert_fillers_fn, num_proc=4)
 
@@ -113,13 +115,14 @@ def run(config, device):
 
     dataset = load_dataset(config.dataset, config.dataset_subset)
     add_filler_tokens(tokenizer, model)
-    dataset = insert_fillers(dataset, config.filler_to_token_ratio, config.no_fillers_prob)
     dataset = tokenize(tokenizer, dataset)
+    dataset = insert_fillers(dataset, tokenizer, config.filler_to_token_ratio, config.no_fillers_prob)
     dataset = batch_texts(dataset, model.config.n_ctx)
 
     print(f'Train size: {len(dataset["train"])}')
     print(f'Validation size: {len(dataset["validation"])}')
-    print(f'Train example: {tokenizer.decode(dataset["train"][1]["input_ids"])}')
+    for i in range(5):
+        print(f'Train example {i}: {tokenizer.decode(dataset["train"][i]["input_ids"])}')
 
     training_args = TrainingArguments(
         output_dir="./model",
