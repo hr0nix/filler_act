@@ -76,7 +76,10 @@ def insert_fillers(dataset, tokenizer, filler_to_token_ratio, no_fillers_prob):
                 text_with_fillers.append(example['input_ids'][text_pos])
                 text_pos += 1
 
-        return {'input_ids': text_with_fillers}
+        return {
+            'input_ids': text_with_fillers,
+            'attention_mask': [1] * len(text_with_fillers)
+        }
 
     return dataset.map(insert_fillers_fn, num_proc=4)
 
@@ -114,15 +117,10 @@ def run(config, device):
     model = model.to(device)
 
     dataset = load_dataset(config.dataset, config.dataset_subset)
-    print(dataset["train"][0])
     add_filler_tokens(tokenizer, model)
-    print(dataset["train"][0])
     dataset = tokenize(tokenizer, dataset)
-    print(dataset["train"][0])
     dataset = insert_fillers(dataset, tokenizer, config.filler_to_token_ratio, config.no_fillers_prob)
-    print(dataset["train"][0])
     dataset = batch_texts(dataset, model.config.n_ctx)
-    print(dataset["train"][0])
 
     print(f'Train size: {len(dataset["train"])}')
     print(f'Validation size: {len(dataset["validation"])}')
