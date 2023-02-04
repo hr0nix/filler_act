@@ -114,14 +114,19 @@ def run(config, device):
     model = model.to(device)
 
     dataset = load_dataset(config.dataset, config.dataset_subset)
+    print(dataset["train"][0])
     add_filler_tokens(tokenizer, model)
+    print(dataset["train"][0])
     dataset = tokenize(tokenizer, dataset)
+    print(dataset["train"][0])
     dataset = insert_fillers(dataset, tokenizer, config.filler_to_token_ratio, config.no_fillers_prob)
+    print(dataset["train"][0])
     dataset = batch_texts(dataset, model.config.n_ctx)
+    print(dataset["train"][0])
 
     print(f'Train size: {len(dataset["train"])}')
     print(f'Validation size: {len(dataset["validation"])}')
-    for i in range(5):
+    for i in range(2):
         print(f'Train example {i}: {tokenizer.decode(dataset["train"][i]["input_ids"])}')
 
     training_args = TrainingArguments(
