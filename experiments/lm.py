@@ -1,6 +1,7 @@
 import argparse
 import yaml
 import dataclasses
+import random
 
 import numpy as np
 
@@ -24,6 +25,7 @@ class ExperimentConfig:
     weight_decay: float
     warmup_ratio: float
     filler_to_token_ratio: float
+    no_fillers_prob: float
 
 
 def load_config(config_path):
@@ -51,8 +53,11 @@ def tokenize(tokenizer, dataset):
     )
 
 
-def insert_fillers(dataset, filler_to_token_ratio):
+def insert_fillers(dataset, filler_to_token_ratio, no_fillers_prob):
     def insert_fillers_fn(example):
+        if random.random() < no_fillers_prob:
+            return example
+
         num_fillers = int(len(example['text']) * filler_to_token_ratio)
         if num_fillers == 0:
             return example
@@ -71,7 +76,7 @@ def insert_fillers(dataset, filler_to_token_ratio):
 
         return {'text': text_with_fillers}
 
-    return dataset.map(insert_fillers_fn, batched=True, num_proc=4)
+    return dataset.map(insert_fillers_fn, num_proc=4)
 
 
 def batch_texts(dataset, chunk_length):
@@ -108,7 +113,7 @@ def run(config, device):
 
     dataset = load_dataset(config.dataset, config.dataset_subset)
     add_filler_tokens(tokenizer, model)
-    dataset = insert_fillers(dataset, config.filler_to_token_ratio)
+    dataset = insert_fillers(dataset, config.filler_to_token_ratio, config.no_fillers_prob)
     dataset = tokenize(tokenizer, dataset)
     dataset = batch_texts(dataset, model.config.n_ctx)
 
