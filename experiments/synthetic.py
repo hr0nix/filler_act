@@ -251,7 +251,7 @@ def compute_accuracy_entropy(
 ):
     device = next(model.parameters()).device
     sum_correct = 0
-    entropy_sum = 0
+    entropy_sum = 0.0
     for i in range(num_iters):
         context, _, result = data_manager.generate_input_target()
         tokens_to_generate = len(result)
@@ -275,8 +275,6 @@ def compute_accuracy_entropy(
                 token_log_probs = F.log_softmax(token_log_probs, dim=-1)
 
             entropy = th.distributions.Categorical(logits=token_log_probs).entropy()
-            import pdb
-            pdb.set_trace()
             entropy_sum += float(entropy.cpu().item())
             token_probs = np.exp(token_log_probs[0, -1].cpu().numpy())
             sampled_token = np.random.choice(len(token_probs), p=token_probs)
