@@ -152,7 +152,8 @@ def evaluate_loss_rolling(model, dataset, tokenizer, num_fillers, device):
 
         sample = model.sample(
             input_ids=prompt, logits_warper=logits_warper,
-            eos_token_id=tokenizer.eos_token_id, pad_token_id=tokenizer.pad_token_id,
+            eos_token_id=tokenizer.eos_token_id,
+            pad_token_id=-1,  # Required, but won't actually be used
         )
         assert sample == example['input_ids']
         loss_sum += logits_warper.loss_sum
