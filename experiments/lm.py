@@ -7,7 +7,7 @@ import numpy as np
 import torch as th
 
 from transformers import (
-    AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments, LogitsWarper, LogitsWarperList
+    AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments, LogitsWarper
 )
 from datasets import load_dataset
 
