@@ -121,7 +121,7 @@ class EvaluatePerplexityLogitsWarper(LogitsWarper):
 
         def _single_like(scores, single_index):
             scores = th.full_like(scores, -float('inf'))
-            scores[0, -1, single_index] = 0.0
+            scores[0, single_index] = 0.0
             return scores
 
         import pdb
@@ -132,7 +132,7 @@ class EvaluatePerplexityLogitsWarper(LogitsWarper):
             return _single_like(scores, self._eos_token_id)
         else:
             expected_token = self._tokenized_example['input_ids'][current_index]
-            self._loss_sum += scores[0, -1, expected_token].item()
+            self._loss_sum += scores[0, expected_token].item()
             return _single_like(scores, expected_token)
 
 
