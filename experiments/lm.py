@@ -229,7 +229,7 @@ def main():
     eval_parser.add_argument('--dataset', type=str, required=True)
     eval_parser.add_argument('--dataset-subset', type=str, required=True)
     eval_parser.add_argument('--num-fillers', type=int, required=False, default=0)
-    train_parser.add_argument('--device', type=str, default='cuda')
+    eval_parser.add_argument('--device', type=str, default='cuda')
     eval_parser.set_defaults(func=eval)
 
     args = parser.parse_args()
