@@ -113,8 +113,8 @@ class EvaluatePerplexityLogitsWarper(LogitsWarper):
         self._loss_sum = 0.0
 
     @property
-    def avg_loss(self):
-        return self._loss_sum / len(self._tokenized_example['input_ids'])
+    def loss_sum(self):
+        return self._loss_sum
 
     def __call__(self, input_ids, scores):
         assert input_ids.shape[0] == scores.shape[0] == 1, "Only batch size 1 is supported"
@@ -138,7 +138,7 @@ class EvaluatePerplexityLogitsWarper(LogitsWarper):
 
 
 @th.no_grad()
-def evaluate_perplexity_rolling(model, dataset, tokenizer, num_fillers, device):
+def evaluate_loss_rolling(model, dataset, tokenizer, num_fillers, device):
     model = model.eval()
     model = model.to(device)
 
@@ -146,6 +146,7 @@ def evaluate_perplexity_rolling(model, dataset, tokenizer, num_fillers, device):
     prompt = th.tensor([[tokenizer.bos_token_id]], device=device)
 
     loss_sum = 0.0
+    token_count = 0
     for example in dataset:
         logits_warper = EvaluatePerplexityLogitsWarper(example, tokenizer.eos_token_id)
 
@@ -154,9 +155,10 @@ def evaluate_perplexity_rolling(model, dataset, tokenizer, num_fillers, device):
             eos_token_id=tokenizer.eos_token_id, pad_token_id=tokenizer.pad_token_id,
         )
         assert sample == example['input_ids']
-        loss_sum += logits_warper.avg_loss
+        loss_sum += logits_warper.loss_sum
+        token_count += len(example['input_ids'])
 
-    return loss_sum / len(dataset)
+    return loss_sum / token_count
 
 
 def load_tokenizer(path):
@@ -221,7 +223,8 @@ def eval(args):
     tokenizer = load_tokenizer(args.tokenizer)
     dataset = load_dataset(args.dataset, args.dataset_subset, split="test")
     dataset = tokenize(tokenizer, dataset)
-    evaluate_perplexity_rolling(model, dataset, tokenizer, args.num_fillers, args.device)
+    loss = evaluate_loss_rolling(model, dataset, tokenizer, args.num_fillers, args.device)
+    print(f'Avg per-token loss: {loss}')
 
 
 def main():
