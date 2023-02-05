@@ -208,6 +208,7 @@ def train(args):
 
 def eval(args):
     model = AutoModelForCausalLM.from_pretrained(args.model_path)
+    print(model.config)
     tokenizer = load_tokenizer(model.config._name_or_path)
     dataset = load_dataset(args.dataset, args.dataset_subset, split="test")
     dataset = tokenize(tokenizer, dataset)
