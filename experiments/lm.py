@@ -127,12 +127,12 @@ class EvaluatePerplexityLogitsWarper(LogitsWarper):
         import pdb
         pdb.set_trace()
 
-        current_len = input_ids.shape[1]
-        if current_len == len(self._tokenized_example['input_ids']):
+        current_index = input_ids.shape[1] - 1
+        if current_index == len(self._tokenized_example['input_ids']):
             return _single_like(scores, self._eos_token_id)
         else:
-            expected_token = self._tokenized_example['input_ids'][current_len - 1]
-            self._loss_sum += scores[0, current_len - 1, expected_token].item()
+            expected_token = self._tokenized_example['input_ids'][current_index]
+            self._loss_sum += scores[0, -1, expected_token].item()
             return _single_like(scores, expected_token)
 
 
@@ -148,7 +148,7 @@ def evaluate_perplexity_rolling(model, dataset, tokenizer, num_fillers, device):
     for example in dataset:
         logits_warper = EvaluatePerplexityLogitsWarper(example, tokenizer.eos_token_id)
 
-        sample = model.sample(input_ids=prompt, logits_warper=logits_warper)
+        sample = model.sample(input_ids=prompt, logits_warper=logits_warper, eos_token_id=tokenizer.eos_token_id)
         assert sample == example['input_ids']
         loss_sum += logits_warper.avg_loss
 
