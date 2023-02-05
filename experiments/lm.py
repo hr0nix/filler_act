@@ -136,17 +136,16 @@ class EvaluatePerplexityLogitsWarper(LogitsWarper):
             return _single_like(scores, expected_token)
 
 
+@th.no_grad()
 def evaluate_perplexity_rolling(model, dataset, tokenizer, num_fillers, device):
-    model.eval()
-    model.to(device)
+    model = model.eval()
+    model = model.to(device)
 
-    input_ids = tokenizer('', return_tensors='pt').input_ids
-    assert input_ids.shape == (1, 0)
     loss_sum = 0.0
     for example in dataset:
         logits_warper = EvaluatePerplexityLogitsWarper(example, tokenizer.eos_token_id)
-        sample = model.sample(input_ids, logits_warper=logits_warper)
-        assert sample == input_ids
+        sample = model.sample(input_ids=None, logits_warper=logits_warper)
+        assert sample == example['input_ids']
         loss_sum += logits_warper.avg_loss
 
     return loss_sum / len(dataset)
