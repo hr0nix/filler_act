@@ -157,8 +157,6 @@ def evaluate_loss_rolling(model, dataset, tokenizer, num_fillers, device):
         loss_sum += logits_warper.loss_sum
         token_count += len(example['input_ids'])
 
-        print(f'Intermediate loss: {loss_sum / (token_count + 1e-10)}')
-
     return loss_sum / token_count
 
 
