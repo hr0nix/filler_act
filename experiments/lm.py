@@ -153,7 +153,7 @@ def evaluate_loss_rolling(model, dataset, tokenizer, num_fillers, device):
             eos_token_id=tokenizer.eos_token_id,
             pad_token_id=-1,  # Required, but won't actually be used
         )
-        assert th.all(sample[0, 1:-1] == th.tensor(example['input_ids']))
+        assert th.all(sample[0, 1:-1] == th.tensor(example['input_ids'], device=sample.device))
         loss_sum += logits_warper.loss_sum
         token_count += len(example['input_ids'])
 
