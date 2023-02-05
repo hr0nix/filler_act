@@ -108,10 +108,14 @@ def batch_texts(dataset, chunk_length):
 
 
 class EvaluatePerplexityLogitsWarper(LogitsWarper):
-    def __init__(self, tokenized_example, eos_token_id):
+    def __init__(self, tokenized_example, num_fillers, eos_token_id, filler_token_id):
         self._tokenized_example = tokenized_example
+        self._num_fillers = num_fillers
+        self._filler_token_id = filler_token_id
         self._eos_token_id = eos_token_id
         self._loss_sum = 0.0
+        self._current_index = 0
+        self._fillers_inserted = 0
 
     @property
     def loss_sum(self):
@@ -125,13 +129,20 @@ class EvaluatePerplexityLogitsWarper(LogitsWarper):
             scores[0, single_index] = 0.0
             return scores
 
-        current_index = input_ids.shape[1] - 1
-        if current_index == len(self._tokenized_example['input_ids']):
+        if self._current_index == len(self._tokenized_example['input_ids']):
+            # Finished generating
             return _single_like(scores, self._eos_token_id)
+        elif self._fillers_inserted < self._num_fillers:
+            # Not enough filler tokens inserted yet
+            self._fillers_inserted += 1
+            return _single_like(scores, self._filler_token_id)
         else:
-            expected_token = self._tokenized_example['input_ids'][current_index]
+            # Time to generate the actual token
+            expected_token = self._tokenized_example['input_ids'][self._current_index]
             scores = th.log_softmax(scores, dim=-1)
             self._loss_sum += -scores[0, expected_token].item()
+            self._fillers_inserted = 0
+            self._current_index += 1
             return _single_like(scores, expected_token)
 
 
@@ -142,18 +153,22 @@ def evaluate_loss_rolling(model, dataset, tokenizer, num_fillers, device):
 
     # TODO: Not sure if I actually should supply an empty prompt here, but it doesn't work anyway
     prompt = th.tensor([[tokenizer.bos_token_id]], device=device)
+    filler_token_id = tokenizer.convert_tokens_to_ids(FILLER_TOKEN)
 
     loss_sum = 0.0
     token_count = 0
     for example in tqdm.tqdm(dataset):
-        logits_warper = EvaluatePerplexityLogitsWarper(example, tokenizer.eos_token_id)
+        logits_warper = EvaluatePerplexityLogitsWarper(
+            tokenized_example=example, num_fillers=num_fillers,
+            filler_token_id=filler_token_id, eos_token_id=tokenizer.eos_token_id
+        )
 
-        sample = model.sample(
+        model.sample(
             input_ids=prompt, logits_warper=logits_warper,
             eos_token_id=tokenizer.eos_token_id,
             pad_token_id=-1,  # Required, but won't actually be used
         )
-        assert th.all(sample[0, 1:-1] == th.tensor(example['input_ids'], device=sample.device))
+
         loss_sum += logits_warper.loss_sum
         token_count += len(example['input_ids'])
 
