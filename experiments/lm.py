@@ -216,7 +216,7 @@ def eval(args):
 
 def main():
     parser = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers(dest='mode')
+    subparsers = parser.add_subparsers(dest='mode', required=True)
 
     train_parser = subparsers.add_parser('train')
     train_parser.add_argument('--config-file', type=str, required=True)
