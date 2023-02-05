@@ -139,8 +139,10 @@ class EvaluatePerplexityLogitsWarper(LogitsWarper):
         else:
             # Time to generate the actual token
             expected_token = self._tokenized_example['input_ids'][self._current_index]
-            scores = th.log_softmax(scores, dim=-1)
-            self._loss_sum += -scores[0, expected_token].item()
+            scores_no_filler = scores.clone()
+            scores_no_filler[0, self._filler_token_id] = -float('inf')
+            scores_no_filler = th.log_softmax(scores_no_filler, dim=-1)
+            self._loss_sum += -scores_no_filler[0, expected_token].item()
             self._fillers_inserted = 0
             self._current_index += 1
             return _single_like(scores, expected_token)
