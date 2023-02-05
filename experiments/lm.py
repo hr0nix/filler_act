@@ -7,9 +7,7 @@ import tqdm
 import numpy as np
 import torch as th
 
-from transformers import (
-    AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments, LogitsWarper
-)
+from transformers import AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments, LogitsWarper
 from datasets import load_dataset
 
 
@@ -129,7 +127,7 @@ class EvaluatePerplexityLogitsWarper(LogitsWarper):
             scores[0, single_index] = 0.0
             return scores
 
-        if self._current_index == len(self._tokenized_example['input_ids']):
+        if self._current_index == len(self._tokenized_example):
             # Finished generating
             return _single_like(scores, self._eos_token_id)
         elif self._fillers_inserted < self._num_fillers:
@@ -138,7 +136,7 @@ class EvaluatePerplexityLogitsWarper(LogitsWarper):
             return _single_like(scores, self._filler_token_id)
         else:
             # Time to generate the actual token
-            expected_token = self._tokenized_example['input_ids'][self._current_index]
+            expected_token = self._tokenized_example[self._current_index]
             scores_no_filler = scores.clone()
             scores_no_filler[0, self._filler_token_id] = -float('inf')
             scores_no_filler = th.log_softmax(scores_no_filler, dim=-1)
@@ -153,15 +151,19 @@ def evaluate_loss_rolling(model, dataset, tokenizer, num_fillers, device):
     model = model.eval()
     model = model.to(device)
 
-    # TODO: Not sure if I actually should supply an empty prompt here, but it doesn't work anyway
-    prompt = th.tensor([[tokenizer.bos_token_id]], device=device)
     filler_token_id = tokenizer.convert_tokens_to_ids(FILLER_TOKEN)
 
     loss_sum = 0.0
     token_count = 0
     for example in tqdm.tqdm(dataset):
+        tokenized_example = example['input_ids']
+        if len(tokenized_example) == 0:
+            continue
+
+        # Use the first token as the prompt as the model has been trained without BOS token
+        prompt = th.tensor([[tokenized_example[0]]], device=device)
         logits_warper = EvaluatePerplexityLogitsWarper(
-            tokenized_example=example, num_fillers=num_fillers,
+            tokenized_example=tokenized_example[1:], num_fillers=num_fillers,
             filler_token_id=filler_token_id, eos_token_id=tokenizer.eos_token_id
         )
 
@@ -172,7 +174,7 @@ def evaluate_loss_rolling(model, dataset, tokenizer, num_fillers, device):
         )
 
         loss_sum += logits_warper.loss_sum
-        token_count += len(example['input_ids'])
+        token_count += len(tokenized_example) - 1
 
     return loss_sum / token_count
 
