@@ -141,10 +141,15 @@ def evaluate_perplexity_rolling(model, dataset, tokenizer, num_fillers, device):
     model = model.eval()
     model = model.to(device)
 
+    # TODO: Not sure if I actually should supply an empty prompt here, but it doesn't work anyway
+    prompt = tokenizer.encode('<bos>')
+    assert prompt[0, 0].item() == tokenizer.bos_token_id
+
     loss_sum = 0.0
     for example in dataset:
         logits_warper = EvaluatePerplexityLogitsWarper(example, tokenizer.eos_token_id)
-        sample = model.sample(input_ids=None, logits_warper=logits_warper)
+
+        sample = model.sample(input_ids=prompt, logits_warper=logits_warper)
         assert sample == example['input_ids']
         loss_sum += logits_warper.avg_loss
 
