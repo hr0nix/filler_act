@@ -208,8 +208,7 @@ def train(args):
 
 def eval(args):
     model = AutoModelForCausalLM.from_pretrained(args.model_path)
-    print(model.config)
-    tokenizer = load_tokenizer(model.config._name_or_path)
+    tokenizer = load_tokenizer(args.tokenizer)
     dataset = load_dataset(args.dataset, args.dataset_subset, split="test")
     dataset = tokenize(tokenizer, dataset)
     evaluate_perplexity_rolling(model, dataset, tokenizer, args.num_fillers, args.device)
@@ -226,6 +225,7 @@ def main():
 
     eval_parser = subparsers.add_parser('eval')
     eval_parser.add_argument('--model-path', type=str, required=True)
+    eval_parser.add_argument('--tokenizer', type=str, required=True)
     eval_parser.add_argument('--dataset', type=str, required=True)
     eval_parser.add_argument('--dataset-subset', type=str, required=True)
     eval_parser.add_argument('--num-fillers', type=int, required=False, default=0)
