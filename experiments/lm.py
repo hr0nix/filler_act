@@ -2,6 +2,7 @@ import argparse
 import yaml
 import dataclasses
 import random
+import tqdm
 
 import numpy as np
 import torch as th
@@ -130,7 +131,7 @@ class EvaluatePerplexityLogitsWarper(LogitsWarper):
         else:
             expected_token = self._tokenized_example['input_ids'][current_index]
             scores = th.log_softmax(scores, dim=-1)
-            self._loss_sum += scores[0, expected_token].item()
+            self._loss_sum += -scores[0, expected_token].item()
             return _single_like(scores, expected_token)
 
 
@@ -144,7 +145,7 @@ def evaluate_loss_rolling(model, dataset, tokenizer, num_fillers, device):
 
     loss_sum = 0.0
     token_count = 0
-    for example in dataset:
+    for example in tqdm.tqdm(dataset):
         logits_warper = EvaluatePerplexityLogitsWarper(example, tokenizer.eos_token_id)
 
         sample = model.sample(
