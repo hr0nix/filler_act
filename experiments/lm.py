@@ -37,13 +37,6 @@ def load_config(config_path):
     return ExperimentConfig(**config)
 
 
-def add_filler_tokens(tokenizer, model):
-    new_tokens = [FILLER_TOKEN]
-    new_tokens = set(new_tokens) - set(tokenizer.vocab.keys())
-    tokenizer.add_tokens(list(new_tokens))
-    model.resize_token_embeddings(len(tokenizer))
-
-
 def tokenize(tokenizer, dataset):
     def tokenize_fn(example):
         return tokenizer(example['text'])
@@ -156,16 +149,24 @@ def evaluate_perplexity_rolling(model, dataset, tokenizer, num_fillers, device):
     return loss_sum / len(dataset)
 
 
+def load_tokenizer(path):
+    tokenizer = AutoTokenizer.from_pretrained(path)
+    new_tokens = [FILLER_TOKEN]
+    new_tokens = set(new_tokens) - set(tokenizer.vocab.keys())
+    tokenizer.add_tokens(list(new_tokens))
+    return tokenizer
+
+
 def train(args):
     config = load_config(args.config_file)
 
-    tokenizer = AutoTokenizer.from_pretrained(config.base_model)
-    model = AutoModelForCausalLM.from_pretrained(config.base_model)
+    tokenizer = load_tokenizer(config.base_model)
 
+    model = AutoModelForCausalLM.from_pretrained(config.base_model)
     model = model.to(args.device)
+    model.resize_token_embeddings(len(tokenizer))
 
     dataset = load_dataset(config.dataset, config.dataset_subset)
-    add_filler_tokens(tokenizer, model)
     dataset = tokenize(tokenizer, dataset)
     dataset = insert_fillers(dataset, tokenizer, config.filler_to_token_ratio, config.no_fillers_prob)
     dataset = batch_texts(dataset, model.config.n_ctx)
@@ -206,11 +207,10 @@ def train(args):
 
 
 def eval(args):
-    tokenizer = AutoTokenizer.from_pretrained(args.model_path)
     model = AutoModelForCausalLM.from_pretrained(args.model_path)
+    tokenizer = load_tokenizer(model.config._name_or_path)
     dataset = load_dataset(args.dataset, args.dataset_subset, split="test")
     dataset = tokenize(tokenizer, dataset)
-
     evaluate_perplexity_rolling(model, dataset, tokenizer, args.num_fillers, args.device)
 
 
