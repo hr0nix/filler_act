@@ -142,8 +142,8 @@ def evaluate_perplexity_rolling(model, dataset, tokenizer, num_fillers, device):
     model = model.to(device)
 
     # TODO: Not sure if I actually should supply an empty prompt here, but it doesn't work anyway
-    prompt = tokenizer.encode('<|endoftext|>')
-    assert prompt[0, 0].item() == tokenizer.bos_token_id
+    prompt = tokenizer.encode(tokenizer.convert_ids_to_tokens(tokenizer.bos_token_id))
+    assert prompt.shape == (1, 1) and prompt[0, 0].item() == tokenizer.bos_token_id
 
     loss_sum = 0.0
     for example in dataset:
