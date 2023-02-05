@@ -4,8 +4,11 @@ import dataclasses
 import random
 
 import numpy as np
+import torch as th
 
-from transformers import AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments
+from transformers import (
+    AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments, LogitsWarper, LogitsWarperList
+)
 from datasets import load_dataset
 
 
@@ -110,11 +113,56 @@ def batch_texts(dataset, chunk_length):
     )
 
 
-def run(config, device):
+class EvaluatePerplexityLogitsWarper(LogitsWarper):
+    def __init__(self, tokenized_example, eos_token_id):
+        self._tokenized_example = tokenized_example
+        self._eos_token_id = eos_token_id
+        self._loss_sum = 0.0
+
+    @property
+    def avg_loss(self):
+        return self._loss_sum / len(self._tokenized_example['input_ids'])
+
+    def __call__(self, input_ids, scores):
+        assert input_ids.shape[0] == scores.shape[0] == 1, "Only batch size 1 is supported"
+
+        def _single_like(scores, single_index):
+            scores = th.full_like(scores, -float('inf'))
+            scores[0, -1, single_index] = 0.0
+            return scores
+
+        current_len = input_ids.shape[1]
+        if current_len == len(self._tokenized_example['input_ids']):
+            return _single_like(scores, self._eos_token_id)
+        else:
+            expected_token = self._tokenized_example['input_ids'][current_len - 1]
+            self._loss_sum += scores[0, current_len - 1, expected_token].item()
+            return _single_like(scores, expected_token)
+
+
+def evaluate_perplexity_rolling(model, dataset, tokenizer, num_fillers, device):
+    model.eval()
+    model.to(device)
+
+    input_ids = tokenizer('', return_tensors='pt').input_ids
+    assert input_ids.shape == (0,)
+    loss_sum = 0.0
+    for example in dataset:
+        logits_warper = EvaluatePerplexityLogitsWarper(example, tokenizer.eos_token_id)
+        sample = model.sample(input_ids, logits_warper=logits_warper)
+        assert sample == input_ids
+        loss_sum += logits_warper.avg_loss
+
+    return loss_sum / len(dataset)
+
+
+def train(args):
+    config = load_config(args.config_file)
+
     tokenizer = AutoTokenizer.from_pretrained(config.base_model)
     model = AutoModelForCausalLM.from_pretrained(config.base_model)
 
-    model = model.to(device)
+    model = model.to(args.device)
 
     dataset = load_dataset(config.dataset, config.dataset_subset)
     add_filler_tokens(tokenizer, model)
@@ -157,12 +205,33 @@ def run(config, device):
     trainer.train()
 
 
+def eval(args):
+    tokenizer = AutoTokenizer.from_pretrained(args.model_path)
+    model = AutoModelForCausalLM.from_pretrained(args.model_path)
+    dataset = load_dataset(args.dataset, args.dataset_subset, split="test")
+    dataset = tokenize(tokenizer, dataset)
+
+    evaluate_perplexity_rolling(model, dataset, tokenizer, args.num_fillers, args.device)
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config-file', type=str, required=True)
-    parser.add_argument('--device', type=str, default='cuda')
+    subparsers = parser.add_subparsers(dest='mode')
+
+    train_parser = subparsers.add_parser('train')
+    train_parser.add_argument('--config-file', type=str, required=True)
+    train_parser.add_argument('--device', type=str, default='cuda')
+    train_parser.set_defaults(func=train)
+
+    eval_parser = subparsers.add_parser('eval')
+    eval_parser.add_argument('--model-path', type=str, required=True)
+    eval_parser.add_argument('--dataset', type=str, required=True)
+    eval_parser.add_argument('--dataset-subset', type=str, required=True)
+    eval_parser.add_argument('--num-fillers', type=int, required=False, default=0)
+    train_parser.set_defaults(func=eval)
+
     args = parser.parse_args()
-    run(config=load_config(args.config_file), device=args.device)
+    args.func(args)
 
 
 if __name__ == "__main__":
