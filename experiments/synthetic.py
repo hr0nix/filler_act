@@ -274,7 +274,10 @@ def compute_accuracy_entropy(
                     token_log_probs[0, -1, token_index] = -100000
                 token_log_probs = F.log_softmax(token_log_probs, dim=-1)
 
-            entropy_sum += float(th.distributions.Categorical(logits=token_log_probs).entropy().cpu().item())
+            entropy = th.distributions.Categorical(logits=token_log_probs).entropy()
+            import gdb
+            gdb.set_trace()
+            entropy_sum += float(entropy.cpu().item())
             token_probs = np.exp(token_log_probs[0, -1].cpu().numpy())
             sampled_token = np.random.choice(len(token_probs), p=token_probs)
             input.append(sampled_token)
