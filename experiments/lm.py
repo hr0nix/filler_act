@@ -107,9 +107,6 @@ def batch_texts(dataset, chunk_length):
 
 @th.no_grad()
 def evaluate_example_loss_rolling(model, tokenizer, tokenized_example, num_fillers):
-    import pdb
-    pdb.set_trace()
-
     filler_token_id = tokenizer.convert_tokens_to_ids(FILLER_TOKEN)
 
     input_ids = [tokenized_example[0]]
