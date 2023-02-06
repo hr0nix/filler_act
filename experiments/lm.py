@@ -106,7 +106,7 @@ def batch_texts(dataset, chunk_length):
 
 
 @th.no_grad()
-def evaluate_example_loss_rolling(model, tokenizer, tokenized_example, num_fillers, device):
+def evaluate_example_loss_rolling(model, tokenizer, tokenized_example, num_fillers):
     import pdb
     pdb.set_trace()
 
@@ -122,8 +122,9 @@ def evaluate_example_loss_rolling(model, tokenizer, tokenized_example, num_fille
             input_ids.append(filler_token_id)
             cur_fillers += 1
         else:
-            input_ids_tensor = th.tensor([[input_ids]]).to(model.device)
-            scores = model(input_ids_tensor)
+            input_ids_tensor = th.tensor(input_ids).to(model.device)
+            model_outputs = model(input_ids_tensor)
+            scores = model_outputs.logits[-1]
 
             # Mask out filler probability and renormalize
             scores[filler_token_id] = -float('inf')
@@ -154,7 +155,7 @@ def evaluate_loss_rolling(model, dataset, tokenizer, num_fillers, device):
             # Skip empty examples as the model requires at least one token prompt to generate anything
             continue
 
-        loss, entropy = evaluate_example_loss_rolling(model, tokenizer, tokenized_example, num_fillers, device)
+        loss, entropy = evaluate_example_loss_rolling(model, tokenizer, tokenized_example, num_fillers)
         loss_sum += loss
         entropy_sum += entropy
         # -1 because we don't count the first token, which is used as a prompt
