@@ -119,7 +119,7 @@ def evaluate_example_loss_rolling(model, tokenizer, tokenized_example, num_fille
             input_ids.append(filler_token_id)
             cur_fillers += 1
         else:
-            input_ids_tensor = th.tensor(input_ids).to(model.device)
+            input_ids_tensor = th.tensor(input_ids[-model.config.n_ctx:]).to(model.device)
             model_outputs = model(input_ids_tensor)
             scores = model_outputs.logits[-1]
 
@@ -225,7 +225,7 @@ def eval(args):
     dataset = tokenize(tokenizer, dataset)
     loss, entropy = evaluate_loss_rolling(model, dataset, tokenizer, args.num_fillers, args.device)
     print(f'Avg per-token loss: {loss:.3f}')
-    print(f'Avg per-token loss: {entropy:.3f}')
+    print(f'Avg per-token entropy: {entropy:.3f}')
 
 
 def main():
