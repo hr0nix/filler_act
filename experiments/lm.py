@@ -139,7 +139,7 @@ def evaluate_example_loss_rolling(model, tokenizer, tokenized_example, num_fille
 
 
 @th.no_grad()
-def evaluate_loss_rolling(model, dataset, tokenizer, num_fillers, device):
+def evaluate_loss_rolling(model, dataset, tokenizer, num_fillers, max_example_len, device):
     model = model.eval()
     model = model.to(device)
 
@@ -148,8 +148,13 @@ def evaluate_loss_rolling(model, dataset, tokenizer, num_fillers, device):
     token_count = 0
     for example in tqdm.tqdm(dataset):
         tokenized_example = example['input_ids']
+
         if len(tokenized_example) == 0:
             # Skip empty examples as the model requires at least one token prompt to generate anything
+            continue
+
+        if max_example_len is not None and len(tokenized_example) > max_example_len:
+            # Skip examples that are too long if requested
             continue
 
         loss, entropy = evaluate_example_loss_rolling(model, tokenizer, tokenized_example, num_fillers)
@@ -223,7 +228,11 @@ def eval(args):
     tokenizer = load_tokenizer(args.tokenizer)
     dataset = load_dataset(args.dataset, args.dataset_subset, split="test")
     dataset = tokenize(tokenizer, dataset)
-    loss, entropy = evaluate_loss_rolling(model, dataset, tokenizer, args.num_fillers, args.device)
+    loss, entropy = evaluate_loss_rolling(
+        model=model, dataset=dataset, tokenizer=tokenizer,
+        num_fillers=args.num_fillers, max_example_len=args.max_example_len,
+        device=args.device
+    )
     print(f'Avg per-token loss: {loss:.3f}')
     print(f'Avg per-token entropy: {entropy:.3f}')
 
@@ -243,6 +252,7 @@ def main():
     eval_parser.add_argument('--dataset', type=str, required=True)
     eval_parser.add_argument('--dataset-subset', type=str, required=True)
     eval_parser.add_argument('--num-fillers', type=int, required=False, default=0)
+    eval_parser.add_argument('--max-example-len', type=int, required=False, default=None)
     eval_parser.add_argument('--device', type=str, default='cuda')
     eval_parser.set_defaults(func=eval)
 
