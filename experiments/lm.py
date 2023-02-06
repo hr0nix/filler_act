@@ -105,45 +105,39 @@ def batch_texts(dataset, chunk_length):
     )
 
 
-class EvaluatePerplexityLogitsWarper(LogitsWarper):
-    def __init__(self, tokenized_example, num_fillers, eos_token_id, filler_token_id):
-        self._tokenized_example = tokenized_example
-        self._num_fillers = num_fillers
-        self._filler_token_id = filler_token_id
-        self._eos_token_id = eos_token_id
-        self._loss_sum = 0.0
-        self._current_index = 0
-        self._fillers_inserted = 0
+@th.no_grad()
+def evaluate_example_loss_rolling(model, tokenizer, tokenized_example, num_fillers, device):
+    import pdb
+    pdb.set_trace()
 
-    @property
-    def loss_sum(self):
-        return self._loss_sum
+    filler_token_id = tokenizer.convert_tokens_to_ids(FILLER_TOKEN)
 
-    def __call__(self, input_ids, scores):
-        assert input_ids.shape[0] == scores.shape[0] == 1, "Only batch size 1 is supported"
-
-        def _single_like(scores, single_index):
-            scores = th.full_like(scores, -float('inf'))
-            scores[0, single_index] = 0.0
-            return scores
-
-        if self._current_index == len(self._tokenized_example):
-            # Finished generating
-            return _single_like(scores, self._eos_token_id)
-        elif self._fillers_inserted < self._num_fillers:
-            # Not enough filler tokens inserted yet
-            self._fillers_inserted += 1
-            return _single_like(scores, self._filler_token_id)
+    input_ids = [tokenized_example[0]]
+    loss_sum = 0.0
+    entropy_sum = 0.0
+    cur_fillers = 0
+    cur_example_pos = 1
+    while cur_example_pos < len(tokenized_example):
+        if cur_fillers < num_fillers:
+            input_ids.append(filler_token_id)
+            cur_fillers += 1
         else:
-            # Time to generate the actual token
-            expected_token = self._tokenized_example[self._current_index]
-            scores_no_filler = scores.clone()
-            scores_no_filler[0, self._filler_token_id] = -float('inf')
-            scores_no_filler = th.log_softmax(scores_no_filler, dim=-1)
-            self._loss_sum += -scores_no_filler[0, expected_token].item()
-            self._fillers_inserted = 0
-            self._current_index += 1
-            return _single_like(scores, expected_token)
+            input_ids_tensor = th.tensor([[input_ids]]).to(model.device)
+            scores = model(input_ids_tensor)
+
+            # Mask out filler probability and renormalize
+            scores[filler_token_id] = -float('inf')
+            scores = th.log_softmax(scores, dim=-1)
+
+            expected_token = tokenized_example[cur_example_pos]
+            loss_sum += -scores[expected_token].item()
+            entropy_sum += th.distributions.Categorical(logits=scores).entropy().item()
+
+            input_ids.append(expected_token)
+            cur_example_pos += 1
+            cur_fillers = 0
+
+    return loss_sum, entropy_sum
 
 
 @th.no_grad()
@@ -151,32 +145,22 @@ def evaluate_loss_rolling(model, dataset, tokenizer, num_fillers, device):
     model = model.eval()
     model = model.to(device)
 
-    filler_token_id = tokenizer.convert_tokens_to_ids(FILLER_TOKEN)
-
     loss_sum = 0.0
+    entropy_sum = 0.0
     token_count = 0
     for example in tqdm.tqdm(dataset):
         tokenized_example = example['input_ids']
         if len(tokenized_example) == 0:
+            # Skip empty examples as the model requires at least one token prompt to generate anything
             continue
 
-        # Use the first token as the prompt as the model has been trained without BOS token
-        prompt = th.tensor([[tokenized_example[0]]], device=device)
-        logits_warper = EvaluatePerplexityLogitsWarper(
-            tokenized_example=tokenized_example[1:], num_fillers=num_fillers,
-            filler_token_id=filler_token_id, eos_token_id=tokenizer.eos_token_id
-        )
-
-        model.sample(
-            input_ids=prompt, logits_warper=logits_warper,
-            eos_token_id=tokenizer.eos_token_id,
-            pad_token_id=-1,  # Required, but won't actually be used
-        )
-
-        loss_sum += logits_warper.loss_sum
+        loss, entropy = evaluate_example_loss_rolling(model, tokenizer, tokenized_example, num_fillers, device)
+        loss_sum += loss
+        entropy_sum += entropy
+        # -1 because we don't count the first token, which is used as a prompt
         token_count += len(tokenized_example) - 1
 
-    return loss_sum / token_count
+    return loss_sum / token_count, entropy_sum / token_count
 
 
 def load_tokenizer(path):
