@@ -225,8 +225,9 @@ def eval(args):
     tokenizer = load_tokenizer(args.tokenizer)
     dataset = load_dataset(args.dataset, args.dataset_subset, split="test")
     dataset = tokenize(tokenizer, dataset)
-    loss = evaluate_loss_rolling(model, dataset, tokenizer, args.num_fillers, args.device)
-    print(f'Avg per-token loss: {loss}')
+    loss, entropy = evaluate_loss_rolling(model, dataset, tokenizer, args.num_fillers, args.device)
+    print(f'Avg per-token loss: {loss:.3f}')
+    print(f'Avg per-token loss: {entropy:.3f}')
 
 
 def main():
