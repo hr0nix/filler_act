@@ -4,7 +4,6 @@ import dataclasses
 import random
 import tqdm
 
-import numpy as np
 import torch as th
 
 from transformers import AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments, LogitsWarper
@@ -26,7 +25,7 @@ class ExperimentConfig:
     lr: float
     weight_decay: float
     warmup_ratio: float
-    filler_to_token_ratio: float
+    filler_prob: float
     no_fillers_prob: float
 
 
@@ -48,32 +47,22 @@ def tokenize(tokenizer, dataset):
     )
 
 
-def insert_fillers(dataset, tokenizer, filler_to_token_ratio, no_fillers_prob):
-    filler_token_index = tokenizer.encode(FILLER_TOKEN)[0]
+def insert_fillers(dataset, tokenizer, filler_prob):
+    filler_token_index = tokenizer.convert_tokens_to_ids(FILLER_TOKEN)
 
     def insert_fillers_fn(example):
-        if random.random() < no_fillers_prob:
-            return example
-
-        num_fillers = int(len(example['input_ids']) * filler_to_token_ratio)
-        if num_fillers == 0:
-            return example
-
-        num_tokens_after_insert = len(example['input_ids']) + num_fillers
-        # Don't insert at the last position because there is no token after it
-        filler_indices = np.random.choice(num_tokens_after_insert - 1, num_fillers, replace=False)
-        text_pos = 0
-        text_with_fillers = []
-        for i in range(num_tokens_after_insert):
-            if i in filler_indices:
-                text_with_fillers.append(filler_token_index)
+        modified_example = []
+        example_pos = 0
+        while example_pos < len(example['input_ids']):
+            if random.random() < filler_prob:
+                modified_example.append(filler_token_index)
             else:
-                text_with_fillers.append(example['input_ids'][text_pos])
-                text_pos += 1
+                modified_example.append(example['input_ids'][example_pos])
+                example_pos += 1
 
         return {
-            'input_ids': text_with_fillers,
-            'attention_mask': [1] * len(text_with_fillers)
+            'input_ids': modified_example,
+            'attention_mask': [1] * len(modified_example),
         }
 
     return dataset.map(insert_fillers_fn, num_proc=4)
@@ -184,8 +173,9 @@ def train(args):
     model.resize_token_embeddings(len(tokenizer))
 
     dataset = load_dataset(config.dataset, config.dataset_subset)
+    dataset = dataset.shuffle()
     dataset = tokenize(tokenizer, dataset)
-    dataset = insert_fillers(dataset, tokenizer, config.filler_to_token_ratio, config.no_fillers_prob)
+    dataset = insert_fillers(dataset, tokenizer, config.filler_prob)
     dataset = batch_texts(dataset, model.config.n_ctx)
 
     print(f'Train size: {len(dataset["train"])}')
