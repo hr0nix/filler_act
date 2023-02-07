@@ -26,7 +26,6 @@ class ExperimentConfig:
     weight_decay: float
     warmup_ratio: float
     filler_prob: float
-    no_fillers_prob: float
 
 
 def load_config(config_path):
@@ -174,6 +173,7 @@ def train(args):
 
     dataset = load_dataset(config.dataset, config.dataset_subset)
     dataset = dataset.shuffle()
+    # TODO: add BOS/EOS tokens
     dataset = tokenize(tokenizer, dataset)
     # TODO: ideally we should generate new filler positions dynamically every epoch
     dataset = insert_fillers(dataset, tokenizer, config.filler_prob)
