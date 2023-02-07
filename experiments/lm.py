@@ -175,6 +175,7 @@ def train(args):
     dataset = load_dataset(config.dataset, config.dataset_subset)
     dataset = dataset.shuffle()
     dataset = tokenize(tokenizer, dataset)
+    # TODO: ideally we should generate new filler positions dynamically every epoch
     dataset = insert_fillers(dataset, tokenizer, config.filler_prob)
     dataset = batch_texts(dataset, model.config.n_ctx)
 
