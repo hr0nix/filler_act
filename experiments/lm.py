@@ -94,8 +94,6 @@ class DataCollatorWithFillerInsertion(DataCollatorForLanguageModeling):
         self._max_seq_len = max_seq_len
 
     def __call__(self, features, return_tensors=None):
-        import pdb
-        pdb.set_trace()
         features = self._insert_fillers(features)
         return super().__call__(features, return_tensors)
 
@@ -180,6 +178,7 @@ def train(args):
 
     training_args = TrainingArguments(
         output_dir="./model",
+        group_by_length=True,
         warmup_ratio=config.warmup_ratio,
         logging_strategy="steps",
         save_strategy="steps",
