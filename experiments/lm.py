@@ -48,6 +48,12 @@ def tokenize(tokenizer, dataset):
     )
 
 
+def remove_empty(dataset):
+    return dataset.filter(
+        lambda example: len(example['input_ids']) > 0,
+    )
+
+
 @th.no_grad()
 def evaluate_example_loss_rolling(model, tokenizer, tokenized_example, num_fillers):
     filler_token_id = tokenizer.convert_tokens_to_ids(FILLER_TOKEN)
@@ -88,8 +94,10 @@ class DataCollatorWithFillerInsertion(DataCollatorForLanguageModeling):
         self._max_seq_len = max_seq_len
 
     def __call__(self, features, return_tensors=None):
+        import pdb
+        pdb.set_trace()
         features = self._insert_fillers(features)
-        super().__call__(features, return_tensors)
+        return super().__call__(features, return_tensors)
 
     def _insert_fillers(self, features):
         return [
@@ -113,7 +121,6 @@ class DataCollatorWithFillerInsertion(DataCollatorForLanguageModeling):
 
         return {
             'input_ids': modified_example,
-            'labels': modified_example,
             'attention_mask': [1] * len(modified_example),
         }
 
@@ -166,6 +173,10 @@ def train(args):
 
     dataset = load_dataset(config.dataset, config.dataset_subset)
     dataset = tokenize(tokenizer, dataset)
+    dataset = remove_empty(dataset)
+
+    print('Training set size:', len(dataset['train']))
+    print('Validation set size:', len(dataset['validation']))
 
     training_args = TrainingArguments(
         output_dir="./model",
@@ -206,13 +217,17 @@ def train(args):
 def eval(args):
     model = AutoModelForCausalLM.from_pretrained(args.model_path)
     tokenizer = load_tokenizer(args.tokenizer)
+
     dataset = load_dataset(args.dataset, args.dataset_subset, split="test")
     dataset = tokenize(tokenizer, dataset)
+    dataset = remove_empty(dataset)
+
     loss, entropy = evaluate_loss_rolling(
         model=model, dataset=dataset, tokenizer=tokenizer,
         num_fillers=args.num_fillers, max_example_len=args.max_example_len,
         device=args.device
     )
+
     print(f'Avg per-token loss: {loss:.3f}')
     print(f'Avg per-token entropy: {entropy:.3f}')
 
