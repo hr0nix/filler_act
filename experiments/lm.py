@@ -151,6 +151,7 @@ def load_tokenizer(path):
     new_tokens = [FILLER_TOKEN]
     new_tokens = set(new_tokens) - set(tokenizer.vocab.keys())
     tokenizer.add_tokens(list(new_tokens))
+    tokenizer.pad_token = tokenizer.eos_token
     return tokenizer
 
 
