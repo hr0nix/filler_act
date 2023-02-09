@@ -192,6 +192,8 @@ def train(args):
         data_collator=DataCollatorWithFillerInsertion(
             filler_prob=config.filler_prob,
             max_seq_len=model.config.n_ctx,
+            tokenizer=tokenizer,
+            mlm=False,
         ),
         train_dataset=dataset["train"],
         eval_dataset=dataset["validation"],
