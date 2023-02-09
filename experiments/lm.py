@@ -6,7 +6,9 @@ import tqdm
 
 import torch as th
 
-from transformers import AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments, LogitsWarper
+from transformers import (
+    AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments, LogitsWarper, DataCollatorForLanguageModeling
+)
 from datasets import load_dataset
 
 
@@ -46,53 +48,6 @@ def tokenize(tokenizer, dataset):
     )
 
 
-def insert_fillers(dataset, tokenizer, filler_prob):
-    filler_token_index = tokenizer.convert_tokens_to_ids(FILLER_TOKEN)
-
-    def insert_fillers_fn(example):
-        modified_example = []
-        example_pos = 0
-        while example_pos < len(example['input_ids']):
-            if random.random() < filler_prob:
-                modified_example.append(filler_token_index)
-            else:
-                modified_example.append(example['input_ids'][example_pos])
-                example_pos += 1
-
-        return {
-            'input_ids': modified_example,
-            'attention_mask': [1] * len(modified_example),
-        }
-
-    return dataset.map(insert_fillers_fn, num_proc=4)
-
-
-def batch_texts(dataset, chunk_length):
-    def batch_texts_fn(example):
-        concatenated_example = {
-            k: sum(example[k], [])
-            for k in example.keys()
-        }
-        total_length = len(concatenated_example['input_ids'])
-        total_length = (total_length // chunk_length) * chunk_length
-        result = {
-            k: [
-                v[i: i + chunk_length]
-                for i in range(0, total_length, chunk_length)
-            ]
-            for k, v in concatenated_example.items()
-        }
-        result['labels'] = result['input_ids'].copy()
-        return result
-
-    return dataset.map(
-        batch_texts_fn,
-        batched=True,
-        batch_size=1000,
-        num_proc=4,
-    )
-
-
 @th.no_grad()
 def evaluate_example_loss_rolling(model, tokenizer, tokenized_example, num_fillers):
     filler_token_id = tokenizer.convert_tokens_to_ids(FILLER_TOKEN)
@@ -124,6 +79,43 @@ def evaluate_example_loss_rolling(model, tokenizer, tokenized_example, num_fille
             cur_fillers = 0
 
     return loss_sum, entropy_sum
+
+
+class DataCollatorWithFillerInsertion(DataCollatorForLanguageModeling):
+    def __init__(self, filler_prob, max_seq_len, **kwargs):
+        super().__init__(**kwargs)
+        self._filler_prob = filler_prob
+        self._max_seq_len = max_seq_len
+
+    def __call__(self, features, return_tensors=None):
+        features = self._insert_fillers(features)
+        super().__call__(features, return_tensors)
+
+    def _insert_fillers(self, features):
+        return [
+            self._insert_fillers_into_example(example)
+            for example in features
+        ]
+
+    def _insert_fillers_into_example(self, example):
+        modified_example = []
+        example_pos = 0
+        while example_pos < len(example['input_ids']):
+            if random.random() < self._filler_prob:
+                modified_example.append(self.tokenizer.convert_tokens_to_ids(FILLER_TOKEN))
+            else:
+                modified_example.append(example['input_ids'][example_pos])
+                example_pos += 1
+
+        if len(modified_example) > self._max_seq_len:
+            start_pos = random.randint(0, len(modified_example) - self._max_seq_len)
+            modified_example = modified_example[start_pos:start_pos + self._max_seq_len]
+
+        return {
+            'input_ids': modified_example,
+            'labels': modified_example,
+            'attention_mask': [1] * len(modified_example),
+        }
 
 
 @th.no_grad()
@@ -172,17 +164,7 @@ def train(args):
     model.resize_token_embeddings(len(tokenizer))
 
     dataset = load_dataset(config.dataset, config.dataset_subset)
-    dataset = dataset.shuffle()
-    # TODO: add BOS/EOS tokens
     dataset = tokenize(tokenizer, dataset)
-    # TODO: ideally we should generate new filler positions dynamically every epoch
-    dataset = insert_fillers(dataset, tokenizer, config.filler_prob)
-    dataset = batch_texts(dataset, model.config.n_ctx)
-
-    print(f'Train size: {len(dataset["train"])}')
-    print(f'Validation size: {len(dataset["validation"])}')
-    for i in range(2):
-        print(f'Train example {i}: {tokenizer.decode(dataset["train"][i]["input_ids"])}')
 
     training_args = TrainingArguments(
         output_dir="./model",
@@ -207,6 +189,10 @@ def train(args):
     trainer = Trainer(
         model=model,
         args=training_args,
+        data_collator=DataCollatorWithFillerInsertion(
+            filler_prob=config.filler_prob,
+            max_seq_len=model.config.n_ctx,
+        ),
         train_dataset=dataset["train"],
         eval_dataset=dataset["validation"],
     )
