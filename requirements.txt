@@ -4,3 +4,6 @@ pyyaml
 wandb
 numpy
 pandas
+transformers
+datasets
+tqdm

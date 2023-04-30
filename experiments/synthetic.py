@@ -246,9 +246,12 @@ def train_model(model, data_manager, num_train_batches, num_val_batches, num_epo
 
 
 @th.no_grad()
-def compute_accuracy(model, data_manager, num_iters=1000, last_n_tokens=None, initial_input=None, ban_tokens=None):
+def compute_accuracy_entropy(
+        model, data_manager, num_iters=1000, last_n_tokens=None, initial_input=None, ban_tokens=None
+):
     device = next(model.parameters()).device
     sum_correct = 0
+    entropy_sum = 0.0
     for i in range(num_iters):
         context, _, result = data_manager.generate_input_target()
         tokens_to_generate = len(result)
@@ -271,6 +274,8 @@ def compute_accuracy(model, data_manager, num_iters=1000, last_n_tokens=None, in
                     token_log_probs[0, -1, token_index] = -100000
                 token_log_probs = F.log_softmax(token_log_probs, dim=-1)
 
+            entropy = th.distributions.Categorical(logits=token_log_probs[0, -1]).entropy()
+            entropy_sum += float(entropy.cpu().item())
             token_probs = np.exp(token_log_probs[0, -1].cpu().numpy())
             sampled_token = np.random.choice(len(token_probs), p=token_probs)
             input.append(sampled_token)
@@ -280,7 +285,10 @@ def compute_accuracy(model, data_manager, num_iters=1000, last_n_tokens=None, in
         else:
             sum_correct += input[-last_n_tokens:] == result[-last_n_tokens:]
 
-    return float(sum_correct) / num_iters
+    return (
+        float(sum_correct) / num_iters,
+        entropy_sum / num_iters,
+    )
 
 
 def evaluate_model(model, data_manager, config):
@@ -288,6 +296,7 @@ def evaluate_model(model, data_manager, config):
         'terms': [],
         'fillers': [],
         'accuracy': [],
+        'entropy': [],
     }
     for num_terms in range(config.min_terms, config.max_terms + 1):
         for num_fillers in range(config.min_fillers, config.max_fillers + 1):
@@ -299,7 +308,7 @@ def evaluate_model(model, data_manager, config):
                 )
             )
             initial_input = [DataManager.UNKNOWN_TOKEN] + [DataManager.FILLER_TOKEN] * num_fillers
-            accuracy = compute_accuracy(
+            accuracy, entropy = compute_accuracy_entropy(
                 model, dm,
                 num_iters=1000,
                 last_n_tokens=1,
@@ -310,6 +319,7 @@ def evaluate_model(model, data_manager, config):
             dataframe['terms'].append(num_terms)
             dataframe['fillers'].append(num_fillers)
             dataframe['accuracy'].append(accuracy)
+            dataframe['entropy'].append(entropy)
 
     wandb.log({'accuracy': pd.DataFrame(dataframe)})
 
@@ -335,8 +345,15 @@ def load_config(config_path):
     return ExperimentConfig(**config)
 
 
+def save_model_to_wandb(model, run):
+    th.save(model.state_dict(), 'model.pt')
+    artifact = wandb.Artifact('model', type='model')
+    artifact.add_file('./model.pt')
+    run.log_artifact(artifact)
+
+
 def run(config, device):
-    wandb.init(project='filler_act', config=config)
+    run = wandb.init(project='filler_act', config=config)
 
     data_manager = DataManager(
         lambda: generate_addition_example(
@@ -366,7 +383,11 @@ def run(config, device):
         batch_size=config.batch_size,
     )
 
+    save_model_to_wandb(model, run)
+
     evaluate_model(model, data_manager, config)
+
+    run.finish()
 
 
 def main():
